@@ -1,6 +1,8 @@
 import dash_html_components as html
 import dash_core_components as dcc
 import dash
+import pandas as pd
+import csv
 
 
 external_stylesheets = [
@@ -111,3 +113,48 @@ def make_dash_table(df):
             html_row.append(html.Td([row[i]]))
         table.append(html.Tr(html_row))
     return table
+
+def readWorldDataUrl(url):
+    Indicators = pd.read_csv("WorldDataBankIndicators.csv", ';').to_dict(orient='records')
+    name='-'
+    for row in Indicators:
+        if(row['DataURL']==url):
+            name=row['Name']
+
+    data=pd.DataFrame()
+    data['Indicator Name']=''
+    try:
+        data = pd.read_csv('WorldDataBankData.csv', ';')
+    except :
+        with open('WorldDataBankData.csv', 'w') as csvfile:
+           writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=['Year','Country Name',  'Value', 'Indicator Name'])
+           writer.writeheader()
+
+    tab_unpivoted = None
+
+    if  not any(data['Indicator Name']== name):
+        dfs = pd.read_html(url)
+        df = dfs[5].transpose()
+        x = df.set_axis(['Year'], axis=1, inplace=False)
+        y = dfs[19].transpose()
+        y.columns = y.iloc[0]
+        y = y.drop(y.index[0])
+        tab = pd.concat([x, y], axis=1)
+        tab_unpivoted = tab.melt(id_vars=['Year'], var_name='Country Name', value_name='Value')
+        tab_unpivoted = tab_unpivoted.dropna(subset=['Year', 'Value'])
+        tab_unpivoted = tab_unpivoted[tab_unpivoted.Value != '..']
+        tab_unpivoted['Indicator Name'] = name
+
+        tab_unpivoted.to_csv('WorldDataBankData.csv', mode='a', index=False, sep=';', header=False)
+        '''with open('WorldDataBankData.csv', 'a') as csvfile:
+            writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=['Indicator Name', 'Country Name', 'Year', 'Value'])
+            for row in tab_unpivoted.iterrows():
+
+                writer.writerow({'Indicator Name':row['Indicator Name'],'Country Name':row['Country Name'],'Year':row['Year'],'Value':row['Value']})'''
+
+    else:
+        tab_unpivoted = data[(data['Indicator Name']==name)]
+
+    return tab_unpivoted
+
+
