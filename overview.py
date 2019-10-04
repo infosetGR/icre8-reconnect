@@ -18,31 +18,7 @@ layout= html.Div([ html.Div(
             ], className="row"
         ),
 
-        # Selectors
-        html.Div(
-            [
-                html.Div(
-                    [
-                        html.P('Choose Location of Study:'),
-                        dcc.Checklist(
-                                id = 'Country',
-                                options=[
-                                    {'label': 'Cyprus', 'value': 'CY'},
-                                    {'label': 'Greece', 'value': 'GR'},
-                                    {'label': 'Bulgaria', 'value': 'BU'},
-                                    {'label': 'Albania', 'value': 'AL'},
-                                ],
-                                value=['CY', 'GR', "BU",  'AL'],
-                                labelStyle={'display': 'inline-block'}
-                        ),
-                    ],
-                    className='six columns',
-                    style={'margin-top': '10'}
-                ),
 
-            ],
-            className='row'
-        ),
 
     ], className='ten columns offset-by-one'))
 ])

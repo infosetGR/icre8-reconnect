@@ -1,0 +1,5 @@
+Country;Type;File
+Cyprus;Mpa;.\spatial-vector-lidar\Cyprus_mpa\Cyprus_mpa.shp
+Cyprus;Posidonia;.\spatial-vector-lidar\Cyprus_Posidonia\CY_Posidonia_100m.shp
+Cyprus;Rocky;.\spatial-vector-lidar\Cyprus_Rocky\CY_Rocky_100m.shp
+Cyprus;Sandy;.\spatial-vector-lidar\Cyprus_Sandy\CY_Sandy_100m.shp

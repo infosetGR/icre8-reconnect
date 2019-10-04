@@ -17,12 +17,40 @@ dfy=None
 
 Indicators = pd.read_csv("WorldDataBankIndicators.csv",';').to_dict(orient='records')
 
+scl={}
+scl['Greece']='#0000ff'
+scl['Albania']='#ff0000'
+scl['Bulgaria']='#00ff00'
+scl['Cyprus']= '#00ffff'
 
 layout= html.Div([
              html.Div([
                  html.Div([
 
                 Header(app),
+
+                     # Selectors
+                html.Div(
+                     [
+                         html.Div(
+                             [
+                                 html.Br(),
+                                 dcc.Dropdown(
+                                     id='Country',
+                                     options=[{'label': str(item),
+                                               'value': str(item)}
+                                              for item in set(scl)],
+                                     multi=True,
+                                     value=list(set(scl))
+                                 ),
+                             ],
+
+                         ),
+
+                     ],
+                     className='ten columns offset-by-one'
+                ),
+
                 html.Div([
                 html.Label('1st series'),
                 dcc.Dropdown(
@@ -85,11 +113,8 @@ layout= html.Div([
     ], className='ten columns offset-by-one')
 ])
 
-scl={}
-scl['Greece']='#0000ff'
-scl['Albania']='#ff0000'
-scl['Bulgaria']='#00ff00'
-scl['Cyprus']= '#00ffff'
+
+
 
 @app.callback(
     dash.dependencies.Output('crossfilter-indicator-scatter', 'figure'),
@@ -98,14 +123,17 @@ scl['Cyprus']= '#00ffff'
      dash.dependencies.Input('crossfilter-xaxis-type', 'value'),
      dash.dependencies.Input('crossfilter-yaxis-type', 'value'),
      dash.dependencies.Input('crossfilter-year--slider', 'value'),
+     dash.dependencies.Input('Country', 'value')
      ])
 def update_graph(xaxis_column_name, yaxis_column_name,
-                 xaxis_type, yaxis_type, year_value):
+                 xaxis_type, yaxis_type, year_value,c):
     if (xaxis_column_name == '-' or yaxis_column_name == '-' or xaxis_column_name == None or yaxis_column_name == None):
       return dash.no_update
 
     dfx=readWorldDataUrl(xaxis_column_name)
     dfy=readWorldDataUrl(yaxis_column_name)
+    dfx=dfx[dfx['Country Name'].isin(c)]
+    dfy = dfy[dfy['Country Name'].isin(c)]
     for row in Indicators:
         if (row['DataURL'] == yaxis_column_name):
             yname = row['Name']

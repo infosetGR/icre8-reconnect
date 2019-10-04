@@ -8,10 +8,14 @@ import LineBuilder
 sns.set(style='whitegrid', palette='pastel', color_codes=True)
 sns.mpl.rc('figure', figsize=(10, 6))
 
-shp_path = './spatial-vector-lidar/Cyprus_Posidonia/CY_Posidonia_100m.shp'
+shp_path = '.\spatial-vector-lidar\Cyprus_Sandy\CY_Sandy_100m.shp'
 sf = shp.Reader(shp_path)
 
-
+'''Cyprus;mpa;.\spatial-vector-lidar\Cyprus_mpa\Cyprus_mpa.shp
+Cyprus;Posidonia;.\spatial-vector-lidar\Cyprus_Posidonia\CY_Posidonia_100m.shp
+Cyprus;Rocky;.\spatial-vector-lidar\Cyprus_Rocky\CY_Rocky_100m.shp  //read  records[id][0] for rocky
+Cyprus;Sandy;.\spatial-vector-lidar\Cyprus_Sandy\CY_Sandy_100m.shp
+'''
 # print(len(sf.shapes()))
 #for i in sf.records():
 #   print(i)
@@ -24,11 +28,12 @@ def read_shapefile(sf):
     """
     fields = [x[0] for x in sf.fields][1:]
     records = sf.records()
+    print(records)
     shps = [s.points for s in sf.shapes()]
     df = pd.DataFrame(columns=fields, data=records)
 
     df = df.assign(coords=shps)
-    #print(df)
+
     return df
 
 
@@ -61,12 +66,15 @@ def plot_map(sf, x_lim=None, y_lim=None, figsize=(11, 9)):
 
     records = sf.records()
 
+    print(records)
     for shape in sf.shapeRecords():
+
         x = [i[0] for i in shape.shape.points[:]]
         y = [i[1] for i in shape.shape.points[:]]
 
         plt.plot(x, y, 'k')
 
+        #print(records[id][1])
 
         if records[id][1] == '0':
             color='#FFFFFF'

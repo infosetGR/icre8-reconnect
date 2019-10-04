@@ -21,7 +21,7 @@ server = app.server
 app.config.suppress_callback_exceptions = True
 
 def Header(app):
-    return html.Div([get_header(app), html.Br([]), get_menu()])
+    return html.Div([get_header(app), html.Br([]), get_menu(),  html.Br([])])
 
 def Footer(app):
     return html.Div(
@@ -38,30 +38,32 @@ def get_header(app):
         [
             html.Div(
                 [
-                    html.A(
-                        html.Button("Learn More", id="learn-more-button"),
-                        href="http://www.icre8.eu/reconnect-interreg",
-
-                    ),
                     html.Img(
-                        src=app.get_asset_url("icre8-logo.png"),
+                        src='http://www.icre8.eu/images/icre8-logo.png',
+                        # src=app.get_asset_url("icre8-logo.png"),
                         className="logo",
                         style={
-                            'height': '16%',
-                            'width': '16%',
+                            'height': '70px',
                             'float': 'right',
                             'position': 'relative',
-                            'padding-top': 12,
+                            'padding-top': 0,
                             'padding-right': 0
                         },
                     ),
+
+
 
                 ],
             ),
             html.Div(
                 [
                     html.Div(
-                        [html.H2("RECONNECT (Interreg) ")], className='nine columns'
+                        [html.H2("RECONNECT DSS Tool ")], className='nine columns'
+
+                    ),
+                    html.A(
+                        html.Button("Learn More", id="learn-more-button"),
+                        href="http://www.icre8.eu/reconnect-interreg", target='_blank'
 
                     ),
                 ],
@@ -83,18 +85,19 @@ def get_menu():
 
 
             ),
+            html.A(
+                html.Button("Load Data")
+                , href="/LoadData"
+            ),
+
            html.A(
                html.Button("Correlation Analysis"),
                 href="/correlationanalysis"
 
 
             ),
-           html.A(
-               html.Button("Map Analysis"),
-                href="/mapanalysis"
 
-            ),
-            html.A(
+           html.A(
                 html.Button("DSS scenarios")
                 , href="/DSSscenarios"
             ),
@@ -114,17 +117,18 @@ def make_dash_table(df):
         table.append(html.Tr(html_row))
     return table
 
-def readWorldDataUrl(url):
+def readWorldDataUrl(url,IndicName='-'):
     Indicators = pd.read_csv("WorldDataBankIndicators.csv", ';').to_dict(orient='records')
-    name='-'
+    name=IndicName
     for row in Indicators:
         if(row['DataURL']==url):
             name=row['Name']
-
+    print('name:'+name)
     data=pd.DataFrame()
     data['Indicator Name']=''
     try:
         data = pd.read_csv('WorldDataBankData.csv', ';')
+
     except :
         with open('WorldDataBankData.csv', 'w') as csvfile:
            writer = csv.DictWriter(csvfile, delimiter=';', fieldnames=['Year','Country Name',  'Value', 'Indicator Name'])
@@ -144,6 +148,7 @@ def readWorldDataUrl(url):
         tab_unpivoted = tab_unpivoted.dropna(subset=['Year', 'Value'])
         tab_unpivoted = tab_unpivoted[tab_unpivoted.Value != '..']
         tab_unpivoted['Indicator Name'] = name
+        print(tab_unpivoted)
 
         tab_unpivoted.to_csv('WorldDataBankData.csv', mode='a', index=False, sep=';', header=False)
         '''with open('WorldDataBankData.csv', 'a') as csvfile:
