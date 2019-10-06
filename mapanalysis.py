@@ -8,11 +8,13 @@ import shapefile as shp
 import plotly.graph_objects as go
 import numpy as np
 import os.path
+import copy
 import json
 
 from utils import Header, Footer, make_dash_table, app
 from dash.dependencies import Input, Output, State
 
+# Reads Excel with CB input to a dataframe
 def ReadCBExcel():
     cb= pd.read_excel('CBASample.xls')
     cb = cb.fillna('')
@@ -37,9 +39,9 @@ def ReadCBExcel():
         if not r['Category'] or r['Category'] is np.nan:  #not add row if has not category
             continue
         if not r['Area'] or r['Area'] is np.nan:
-            r['Area']=None
+            r['Area']=''
         if not r['AreaType'] or r['AreaType'] is np.nan:
-            r['Area'] = None
+            r['Area'] = ''
         for i in range(1,25):
             if  r['Y'+str(i)]=='':
                 r['Y'+str(i)]=0
@@ -57,7 +59,7 @@ cba=ReadCBExcel()
 # API keys and datasets
 mapbox_access_token = 'pk.eyJ1IjoiZm90aXNzcyIsImEiOiJjazB0cG5qdmcwYW85M2NvMXk1bXIxbGpoIn0.2gG7BRYboHPm-bDQohusCw'
 
-
+#parses a shapefile to a dataframe for mapbox
 def read_shapefile(shp_path):
  
     sf = shp.Reader(shp_path)
@@ -71,16 +73,18 @@ def read_shapefile(shp_path):
 
     return df
 
+#read all shapefiles specified in ShapeFiles.csv
 def read_Maps():
     Layers= pd.read_csv('ShapeFiles.csv', ';')
     maps =  pd.DataFrame()
     for i,r in Layers.iterrows():
+
         script_dir = os.path.dirname(__file__)
         rel_path = r['File']
         abs_file_path = os.path.join(script_dir, rel_path)
-
         # Selecting only required columns
         map_data = read_shapefile(abs_file_path)
+
         if 'X' in map_data and 'Y' in map_data:
             if 'Id' in map_data and 'Percentage' in map_data:
                 map_data = map_data[["X", "Y", "Id", "Percentage"]].drop_duplicates()
@@ -89,11 +93,12 @@ def read_Maps():
                 map_data = map_data[["X", "Y", "Id", "Percentage"]].drop_duplicates()
             else:
                 map_data = map_data[["X", "Y"]].drop_duplicates()
-                map_data['Id']=0
+                map_data['Id']=i
                 map_data['Percentage'] = 0
 
         map_data['Country'] = r['Country']
         map_data['Type'] = r['Type']
+
         maps = maps.append(map_data)
     return maps
 
@@ -170,10 +175,8 @@ scl['Sandy','10-50']='#b99c6b'
 scl['Sandy','50-100']= '#a5714e'
 # functions
 
+# returns map from dataframe
 def gen_map(md):
-    # groupby returns a dictionary mapping the values of the first field
-    # 'classification' onto a list of record dictionaries with that
-    # classification value.
     type=set(md['Type'])
     return {
         "data": [{
@@ -205,6 +208,7 @@ def gen_map(md):
                     ),
                 )'''
 
+# Main Layout
 layout= html.Div([ html.Div(
     html.Div([
         html.Div(
@@ -270,13 +274,13 @@ layout= html.Div([ html.Div(
                         dcc.Input(id="Inflation",
                                   type="number",
                                   placeholder="Inflation",
-                                  value=0,
+                                  value=0, max=20,min=-20
                                   ),
                         html.P('Interest rate %:'),
                         dcc.Input(id="Interest",
                                   type="number",
                                   placeholder="Interest",
-                                  value=0,
+                                  value=0, max=20, min=-20
                                   ),
                     ],
                     className='six columns',
@@ -318,16 +322,38 @@ layout= html.Div([ html.Div(
                             multi=True,
                             value=list(set(cba['Type']))
                         ),
-                        html.P('Months (1-24):'),
-                        dcc.Slider( id='Months',
+                        html.P('Years (1-20):'),
+                        dcc.Slider( id='Years',
                             min=1,
-                            max=24,
+                            max=20,
                             step=1,
                             value=10
                         ),
                         html.Div(id='slider-output-container'),
+                        html.Br(),
+                        html.Br(),
+                        html.Label('Graph Type & Values'),
+                        dcc.RadioItems(
+                            id="CBcharttype",
+                            options=[
+                                {"label": "Line", "value": "Line"},
+                                {"label": "Bar", "value": "Bar"},
+                            ],
+                            value="Bar",
+                            className="three columns",
+                        ),
+                        dcc.RadioItems(
+                            id="Cumulative",
+                            options=[
+                                {"label": "per Year", "value": "No"},
+                                {"label": "Cumulative", "value": "Yes"},
+                            ],
+                            value="No",
+                            className="three columns",
+                        ),
 
                         ],
+
                     className="six columns"
                 ),
                 html.H3('Cost-Benefit Analysis'),
@@ -337,30 +363,33 @@ layout= html.Div([ html.Div(
                     )
                 ], className='twelve columns'
                 ),
+                html.Div([
+                    html.Div([
+                        dcc.Graph(
+                            id='costpie'
+                        )
+                    ], className='six columns'
+                    ),
+                    html.Div([
+                        dcc.Graph(
+                            id='revenuepie'
+                        )
+                    ], className='six columns'
+                    )], className='twelve columns'),
+                html.Div([
+                    html.Div([
+                        dcc.Graph(
+                            id='costperareapie'
+                        )
+                    ], className='six columns'
+                    ),
+                    html.Div([
+                        dcc.Graph(
+                            id='costperareatypepie'
+                        )
+                    ], className='six columns'
+                    )], className='twelve columns'),
 
-
-                html.Div(
-                    [   html.P('Cost-Benefit Input'),
-                        dt.DataTable(
-                            id='datatable',
-                            data=cba.to_dict('records'),
-                            columns=[{"name": i, "id": i, "deletable": False, "selectable": False} for i in cba.columns
-                            ],
-                            editable=True,
-                            filter_action="native",
-                            sort_action="native",
-                            sort_mode="multi",
-                            column_selectable="single",
-                            row_selectable=False,
-                            row_deletable=False,
-                            page_action="native",
-                            page_current=0,
-                            page_size=10
-                            ),
-                    ],
-                    style = layout_table,
-                    className="twelve columns"
-                ),
                 html.Div(
                     [
                         html.P('Selected Areas:'),
@@ -379,13 +408,36 @@ layout= html.Div([ html.Div(
                             row_selectable=False,
                             row_deletable=False,
                             page_action="native",
-                            page_current=0,
-                            page_size=5
+                            # page_current=0,
+                            # page_size=5
                         ),
                     ],
                     style=layout_table,
                     className="six columns"
                 ),
+                html.Div(
+                    [   html.P('Cost-Benefit Input'),
+                        dt.DataTable(
+                            id='datatable',
+                            data=cba.to_dict('records'),
+                            columns=[{"name": i, "id": i, "deletable": False, "selectable": False} for i in cba.columns
+                            ],
+                            editable=True,
+                            filter_action="native",
+                            sort_action="native",
+                            sort_mode="multi",
+                            column_selectable="single",
+                            row_selectable=False,
+                            row_deletable=False,
+                            page_action="native",
+                            page_current=0
+
+                            ),
+                    ],
+                    style = layout_table,
+                    className="twelve columns"
+                ),
+
 
 
                 Footer(app)
@@ -394,15 +446,51 @@ layout= html.Div([ html.Div(
         )
     ], className='ten columns offset-by-one'))
 ])
+'''
+layout = dict(
+            bargap=0.05,
+            bargroupgap=0,
+            barmode='group',
+            showlegend=False,
+            dragmode="select",
+            xaxis=dict(
+                showgrid=False,
+                nticks=50,
+                fixedrange=False
+            ),
+            yaxis=dict(
+                showticklabels=True,
+                showgrid=False,
+                fixedrange=False,
+                rangemode='nonnegative',
+                zeroline=False        )
+        )
 
+layout = dict(
+    autosize=True,
+    automargin=True,
+    margin=dict(l=30, r=30, b=20, t=40),
+    hovermode="closest",
+    plot_bgcolor="#F9F9F9",
+    paper_bgcolor="#F9F9F9",
+    legend=dict(font=dict(size=10), orientation="h"),
+    title="",
+    mapbox=dict(
+        accesstoken=mapbox_access_token,
+        style="light",
+        center=dict(lon=-78.05, lat=42.54),
+        zoom=7,
+    ),
+)'''
 
+# Slider => show selected value
 @app.callback(
     dash.dependencies.Output('slider-output-container', 'children'),
     [dash.dependencies.Input('Years', 'value')])
 def update_output(value):
-    return 'You have selected {} months'.format(value)
+    return 'You have selected {} years'.format(value)
 
-
+# Options => Map layer
 @app.callback(
     Output('map-graph', 'figure'),
     [Input('Layer', 'value'),
@@ -417,8 +505,8 @@ def map_selection(layer,country,per):
  #       return gen_map(aux)
     return gen_map(aux)
 
-#dff=pd.DataFrame()
 
+# Map selection of area => Intermediate field for aggregate types and percentages
 @app.callback(Output('intermediate-value','children'),
     [Input('map-graph','selectedData')
     ])
@@ -436,16 +524,7 @@ def selectData(selectData):
             return selmapdata.to_json(date_format='iso', orient='records')
            # str('Selecting points produces a nested dictionary: {}'.format(filtList))
 
-'''@app.callback(Output('table', 'children'), [Input('intermediate-value', 'children')])
-def update_table(jsonified_cleaned_data):
-    table= html.Table()
-
-    if not jsonified_cleaned_data is None:
-        dff= pd.read_json(jsonified_cleaned_data, orient='records')
-        table = make_dash_table()
-    return table'''
-
-
+#Intermediate field for aggregate types and percentages => Table
 @app.callback(
     Output('selectedpointsDataTable', 'data'),
     [Input('intermediate-value', 'children')])
@@ -479,57 +558,355 @@ def create_time_series(dff, axis_type, title):
         }
     }
 
+
 @app.callback(
-    Output('bar-graph', 'figure'),
+    Output('costperareatypepie', 'figure'),
+    [Input('datatable', 'data'),
+     Input('selectedpointsDataTable', 'data'),
+     Input('Years', 'value'),
+     Input('Category', 'value'),
+     Input('Inflation', 'value'),
+     Input('Interest', 'value'),
+     Input('Project', 'value'),
+     Input('Country', 'value'),
+     ])
+def update_figure(cbdata, areasdata, years, costrevcategory, interest, inflation, projects, country):
+    if len(cbdata) == 0 or areasdata == None or len(areasdata) == 0:
+        return dash.no_update
+
+    c = produce_aggregate_area(cbdata, areasdata, years, 'Cost', costrevcategory, interest, inflation,
+                               projects, country)
+    print(c)
+    c['Area']=c['Area'] + ' '+ c['Percentage']
+    c = c.groupby(['Area']).sum().reset_index()
+
+    c = c.replace(to_replace=[' all','all','',' '], value='Other')
+
+    fig = go.Figure(data=[go.Pie(labels=c['Area'], values=c['Cost'])])
+    fig.update_layout(title='Cost per Area percentage', showlegend=True)
+    return fig
+
+@app.callback(
+    Output('costperareapie', 'figure'),
     [Input('datatable', 'data'),
      Input('selectedpointsDataTable','data'),
-     Input('Months','value'),
-     Input('Type','value'),
+     Input('Years','value'),
      Input('Category','value'),
      Input('Inflation','value'),
      Input('Interest','value'),
      Input('Project','value'),
      Input('Country','value'),
     ])
-def update_figure(cbdata,areasdata,months,costorrev, costrevcategory, interest,inflation,projects,country ):
-    #if  areasdata['Type'] is None or len(areasdata['Type']) == 0:
-     #   return
-    print(areasdata)
+def update_figure(cbdata,areasdata,years, costrevcategory, interest,inflation,projects,country):
+    if len(cbdata) == 0 or areasdata == None or len(areasdata) == 0:
+        return dash.no_update
 
-    cbb = cba[cba["Type"].isin(costorrev)]
-    cbb = cbb[cbb["Category"].isin(costrevcategory)]
-    cbb = cbb[cbb["Project"].isin(projects)]
-   # cbb = cbb[cbb["AreaType"].isin(set(areasdata['Percentage']))]
-    cbd= cbb.sum(axis=1)
 
-   # return create_time_series(cbd )
-    
-    layout = go.Layout(
-            bargap=0.05,
-            bargroupgap=0,
-            barmode='group',
-            showlegend=False,
+    c = produce_aggregate_area(cbdata, areasdata, years, 'Cost', costrevcategory, interest, inflation,
+                                              projects, country)
+    c= c.groupby(['Area']).sum().reset_index()
+    c= c.replace(to_replace=[' all','all', '', ' '], value='Other')
+
+    fig = go.Figure(data=[go.Pie(labels=c['Area'], values=c['Cost'])])
+    fig.update_layout(title='Cost per Area', showlegend=True)
+    return fig
+
+
+#costperaretypeapie
+
+@app.callback(
+    Output('costpie', 'figure'),
+    [Input('datatable', 'data'),
+     Input('selectedpointsDataTable','data'),
+     Input('Years','value'),
+     Input('Category','value'),
+     Input('Inflation','value'),
+     Input('Interest','value'),
+     Input('Project','value'),
+     Input('Country','value'),
+    ])
+def update_figure(cbdata,areasdata,years, costrevcategory, interest,inflation,projects,country):
+    if len(cbdata) == 0 or areasdata == None or len(areasdata) == 0:
+        return dash.no_update
+
+
+    category, cost, rev = produce_aggregate_category(cbdata, areasdata, years, 'Cost', costrevcategory, interest, inflation,
+                                              projects, country)
+
+    fig = go.Figure(data=[go.Pie(labels=category, values=cost)])
+    fig.update_layout(title='Cost per category', showlegend=True)
+    return fig
+
+@app.callback(
+    Output('revenuepie', 'figure'),
+    [Input('datatable', 'data'),
+     Input('selectedpointsDataTable','data'),
+     Input('Years','value'),
+     Input('Category','value'),
+     Input('Inflation','value'),
+     Input('Interest','value'),
+     Input('Project','value'),
+     Input('Country','value'),
+    ])
+def update_figure(cbdata,areasdata,years, costrevcategory, interest,inflation,projects,country):
+    if len(cbdata) == 0 or areasdata == None or len(areasdata) == 0:
+        return dash.no_update
+
+
+    category, cost, rev = produce_aggregate_category(cbdata, areasdata, years, 'Revenue' , costrevcategory, interest, inflation,
+                                              projects, country)
+
+    fig = go.Figure(data=[go.Pie(labels=category, values=rev)])
+    fig.update_layout(title='Revenues per category', showlegend=True, )
+    return fig
+
+
+
+
+
+
+@app.callback(
+    Output('bar-graph', 'figure'),
+    [Input('datatable', 'data'),
+     Input('selectedpointsDataTable','data'),
+     Input('Years','value'),
+     Input('Type','value'),
+     Input('Category','value'),
+     Input('Inflation','value'),
+     Input('Interest','value'),
+     Input('Project','value'),
+     Input('Country','value'),
+     Input('CBcharttype','value'),
+     Input('Cumulative','value')
+    ])
+def update_figure(cbdata,areasdata,years,costorrev, costrevcategory, interest,inflation,projects,country,charttype,cumulative ):
+    if len(cbdata)==0 or areasdata==None or len(areasdata)==0:
+        return dash.no_update
+
+    index, cost, revenue, npv = produce_aggregate(cbdata, areasdata,years,costorrev, costrevcategory, interest,inflation,projects,country,cumulative)
+    fig = go.Figure()
+    if(charttype=='Line'):
+        fig.add_trace(go.Scatter(
+            mode="lines",
+            name="Cost",
+            x=index,
+            y=cost,
+            line=dict(shape="spline", smoothing=0.1, color="#ff9999")))
+        fig.add_trace(go.Scatter(
+            mode="lines",
+            name="Revenue",
+            x=index,
+            y=revenue,
+            line=dict(shape="spline", smoothing=0.1, color="#80ffbf")))
+
+        fig.add_trace(go.Scatter(
+            mode="lines",
+            name="NPV",
+            x=index,
+            y=npv,
+            line=dict(shape="spline", smoothing=0.1, color="#3385ff")))
+
+        fig.update_layout(
+            title='Cost & Revenues',
+            showlegend=True,
             dragmode="select",
             xaxis=dict(
                 showgrid=False,
-                nticks=50,
+                nticks=years,
                 fixedrange=False
             ),
             yaxis=dict(
                 showticklabels=True,
                 showgrid=False,
                 fixedrange=False,
-                rangemode='nonnegative',
-                zeroline=False        )
+                zeroline=True)
         )
-    data = [
-             go.Bar(
-             #   x=cbd[1],
-                y=list(cbd)
-          )
-         ]
+    else:
+        c = pd.Series(cost)
 
-    return go.Figure(data=data, layout=layout)
+        fig.add_trace(go.Bar(
+            name="Cost",
+            marker_color='#ff9999',
+            x=index,
+            y=c * -1,
+            ))
+        fig.add_trace(go.Bar(
+            name="Revenue",
+            marker_color='#80ffbf',
+            x=index,
+            y=revenue,
+        ))
+        fig.add_trace(go.Scatter(
+            mode="lines",
+            name="NPV",
+            x=index,
+            y=npv,
+            line=dict(shape="spline", smoothing=0.1, color="#3385ff")))
+
+        fig.update_layout(barmode='relative', title='Cost & Revenues', showlegend=True,)
+
+
+
+    return fig
+
+# calculate cost benefit graph data
+def produce_aggregate(cbdata, areas, years, costorrev, costrevcategory, interest, inflation, projects, country,cumulative):
+    index = list(range(1,years+1))
+    cost=[]
+    revenue=[]
+    npvs=[]
+
+    ar=pd.DataFrame(areas)
+    r = 1 + (interest - inflation)/100
+    npv=0
+    i=1
+    for year in index:
+        sumcost = 0
+        sumrev = 0
+        for cb in cbdata:
+            if cb['Project'] in projects:
+                if cb['Category'] in costrevcategory:
+                    if cb['Type']=='Cost':
+                        if cb['Area']=='':
+                            if cb['AreaType']=='':
+                                sumcost+=cb['Y'+str(year)]
+                            elif  cb['AreaType']=='all':
+                                sumcost += cb['Y' + str(year)] * ar['Count'].sum()
+                            else:
+                                sumcost+= cb['Y' + str(year)] * ar[ar["Percentage"]==cb['AreaType']]['Count'].sum()
+                        else:
+                            if cb['AreaType'] == '' or cb['AreaType'] == 'all':
+                                sumcost += cb['Y' + str(year)] * ar[ar["Type"] == cb['Area']]['Count'].sum()
+                            else:
+                                sumcost += cb['Y' + str(year)] * ar[ar["Percentage"] == cb['AreaType']]['Count'].sum()
+                    elif cb["Type"] == 'Revenue':
+                        if cb['Area'] == '':
+                            if cb['AreaType'] == '':
+                                sumrev += cb['Y' + str(year)]
+                            elif cb['AreaType'] == 'all':
+                                sumrev += cb['Y' + str(year)] * ar['Count'].sum()
+                            else:
+                                sumrev += cb['Y' + str(year)] * ar[ar["Percentage"] == cb['AreaType']]['Count'].sum()
+                        else:
+                            if cb['AreaType'] == '' or cb['AreaType'] == 'all':
+                                sumrev += cb['Y' + str(year)] * ar[ar["Type"] == cb['Area']]['Count'].sum()
+                            else:
+                                sumrev += cb['Y' + str(year)] * ar[ar["Percentage"] == cb['AreaType']]['Count'].sum()
+        if i==1 or cumulative=='No':
+            cost.append(sumcost)
+            revenue.append(sumrev)
+            npvs.append(sumrev - sumcost)
+        else:
+            cost.append(float(cost[-1])+sumcost)
+            revenue.append(float(revenue[-1])+sumrev)
+            npvs.append(float(npvs[-1])+(sumrev - sumcost)/r**i)
+        i=i+1
+    return index, cost,revenue, npvs
+
+def produce_aggregate_category(cbdata, areas, years,costorrev,costrevcategory, interest, inflation, projects, country):
+    index = list(range(1,years+1))
+    cost=[]
+    revenue=[]
+    category=[]
+
+    ar=pd.DataFrame(areas)
+    r = 1 + (interest - inflation)/100
+    npv=0
+    i=1
+
+    for cb in cbdata:
+        sumcost = 0
+        sumrev = 0
+        for year in index:
+            if cb['Project'] in projects:
+                if cb['Category'] in costrevcategory:
+                    if cb['Type']=='Cost' and  cb['Type'] in costorrev:
+                        if not cb['Area']==None or len(cb['Area'])==0:
+                            if len(cb['AreaType'])==0:
+                                sumcost+=cb['Y'+str(year)]
+                            elif  cb['AreaType']=='all':
+                                sumcost += cb['Y' + str(year)] * ar['Count'].sum()
+                            else:
+                                sumcost+= cb['Y' + str(year)] * ar[ar["Percentage"]==cb['AreaType']]['Count'].sum()
+                        else:
+                            if cb['AreaType'] == '' or cb['AreaType'] == 'all':
+                                sumcost += cb['Y' + str(year)] * ar[ar["Type"] == cb['Area']]['Count'].sum()
+                            else:
+                                sumcost += cb['Y' + str(year)] * ar[ar["Percentage"] == cb['AreaType']]['Count'].sum()
+                    elif cb["Type"] == 'Revenue'  and  cb['Type'] in costorrev:
+                        if not cb['Area']==None or len(cb['Area']) == 0:
+                            if len(cb['AreaType']) == 0:
+                                sumrev += cb['Y' + str(year)]
+                            elif cb['AreaType'] == 'all':
+                                sumrev += cb['Y' + str(year)] * ar['Count'].sum()
+                            else:
+                                sumrev += cb['Y' + str(year)] * ar[ar["Percentage"] == cb['AreaType']]['Count'].sum()
+                        else:
+                            if cb['AreaType'] == '' or cb['AreaType'] == 'all':
+                                sumrev += cb['Y' + str(year)] * ar[ar["Type"] == cb['Area']]['Count'].sum()
+                            else:
+                                sumrev += cb['Y' + str(year)] * ar[ar["Percentage"] == cb['AreaType']]['Count'].sum()
+        if cb['Type'] in costorrev:
+            if sumcost>0 or sumrev>0:
+                category.append(cb['Category'])
+                cost.append(sumcost)
+                revenue.append(sumrev)
+        i=i+1
+    return category, cost,revenue
+
+
+
+def produce_aggregate_area(cbdata, areas, years,costorrev,costrevcategory, interest, inflation, projects, country):
+    index = list(range(1,years+1))
+    cost=[]
+    revenue=[]
+    category=[]
+
+    ar=pd.DataFrame(areas)
+    r = 1 + (interest - inflation)/100
+    npv=0
+    i=1
+
+    CostRevArea=pd.DataFrame(columns=['Area','Percentage','Cost','Revenue'])
+
+    for cb in cbdata:
+        sumcost = 0
+        sumrev = 0
+        for year in index:
+            if cb['Project'] in projects:
+                if cb['Category'] in costrevcategory:
+                    if cb['Type']=='Cost' and  cb['Type'] in costorrev:
+                        if not cb['Area']==None or len(cb['Area'])==0:
+                            if len(cb['AreaType'])==0:
+                                sumcost+=cb['Y'+str(year)]
+                            elif  cb['AreaType']=='all':
+                                sumcost += cb['Y' + str(year)] * ar['Count'].sum()
+                            else:
+                                sumcost+= cb['Y' + str(year)] * ar[ar["Percentage"]==cb['AreaType']]['Count'].sum()
+                        else:
+                            if cb['AreaType'] == '' or cb['AreaType'] == 'all':
+                                sumcost += cb['Y' + str(year)] * ar[ar["Type"] == cb['Area']]['Count'].sum()
+                            else:
+                                sumcost += cb['Y' + str(year)] * ar[ar["Percentage"] == cb['AreaType']]['Count'].sum()
+                    elif cb["Type"] == 'Revenue'  and  cb['Type'] in costorrev:
+                        if not cb['Area']==None or len(cb['Area']) == 0:
+                            if len(cb['AreaType']) == 0:
+                                sumrev += cb['Y' + str(year)]
+                            elif cb['AreaType'] == 'all':
+                                sumrev += cb['Y' + str(year)] * ar['Count'].sum()
+                            else:
+                                sumrev += cb['Y' + str(year)] * ar[ar["Percentage"] == cb['AreaType']]['Count'].sum()
+                        else:
+                            if cb['AreaType'] == '' or cb['AreaType'] == 'all':
+                                sumrev += cb['Y' + str(year)] * ar[ar["Type"] == cb['Area']]['Count'].sum()
+                            else:
+                                sumrev += cb['Y' + str(year)] * ar[ar["Percentage"] == cb['AreaType']]['Count'].sum()
+        if cb['Type'] in costorrev:
+            if sumcost>0 or sumrev>0:
+                CostRevArea= CostRevArea.append({'Area':cb['Area'],'Percentage':cb['AreaType'],'Cost':sumcost, 'Revenue':sumrev}, ignore_index=True)
+        i=i+1
+    return CostRevArea
+
 
 if __name__ == '__main__':
     app.run_server(debug=False)

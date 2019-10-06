@@ -8,7 +8,7 @@ import LineBuilder
 sns.set(style='whitegrid', palette='pastel', color_codes=True)
 sns.mpl.rc('figure', figsize=(10, 6))
 
-shp_path = '.\spatial-vector-lidar\Cyprus_Sandy\CY_Sandy_100m.shp'
+shp_path = '.\spatial-vector-lidar\Cyprus_mpa\Cyprus_mpa.shp'
 sf = shp.Reader(shp_path)
 
 '''Cyprus;mpa;.\spatial-vector-lidar\Cyprus_mpa\Cyprus_mpa.shp
