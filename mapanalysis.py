@@ -8,6 +8,7 @@ import shapefile as shp
 import plotly.graph_objects as go
 import numpy as np
 import os.path
+import area as ar
 import copy
 import json
 
@@ -108,6 +109,7 @@ map_data=read_Maps()
 
 
 
+
 #  Layouts
 layout_table = dict(
     autosize=True,
@@ -198,6 +200,8 @@ def gen_map(md):
         "layout": layout_map(list(type)[0]),
     }
 
+
+
 '''  html.Div(
                     dcc.ConfirmDialogProvider(
                         children=html.Button(
@@ -214,13 +218,14 @@ layout= html.Div([ html.Div(
         html.Div(
             [
                 Header(app),
-
+                dcc.Store(id="MapCostRevdata"),
 
                 html.Div(children='',
                          id='display',
-                        className='nine columns'
+                         className='nine columns'
                 ),
                 html.Div(id='intermediate-value', style={'display': 'none'}),
+                html.Div(id='intermediate-value2', style={'display': 'none'}),
                 html.Table(id='table'),
             ], className="row"
         ),
@@ -254,13 +259,7 @@ layout= html.Div([ html.Div(
                                      for item in set(map_data['Percentage'])],
                             multi=True,
                             value=list(set(map_data['Percentage']))
-                        )
-                    ],
-                    className='six columns',
-
-                ),
-                html.Div(
-                    [
+                        ),
                         html.P('Projects:'),
                         dcc.Dropdown(
                             id='Project',
@@ -274,7 +273,7 @@ layout= html.Div([ html.Div(
                         dcc.Input(id="Inflation",
                                   type="number",
                                   placeholder="Inflation",
-                                  value=0, max=20,min=-20
+                                  value=0, max=20, min=-20
                                   ),
                         html.P('Interest rate %:'),
                         dcc.Input(id="Interest",
@@ -282,27 +281,6 @@ layout= html.Div([ html.Div(
                                   placeholder="Interest",
                                   value=0, max=20, min=-20
                                   ),
-                    ],
-                    className='six columns',
-
-                ),
-
-            ],
-            className='row'
-        ),
-
-        # Map + table + Histogram
-        html.Div(
-            [
-                html.Div(
-                    [
-                        dcc.Graph(id='map-graph',
-                                  animate=False,
-                                  style={'margin-top': '20'})
-                    ], className = "six columns"
-                ),
-                html.Div(
-                    [
 
                         html.P('Category:'),
                         dcc.Dropdown(
@@ -316,19 +294,19 @@ layout= html.Div([ html.Div(
                         html.P('Type:'),
                         dcc.Dropdown(
                             id='Type',
-                            options=[{'label': str(item) ,
+                            options=[{'label': str(item),
                                       'value': str(item)}
                                      for item in set(cba['Type'])],
                             multi=True,
                             value=list(set(cba['Type']))
                         ),
                         html.P('Years (1-20):'),
-                        dcc.Slider( id='Years',
-                            min=1,
-                            max=20,
-                            step=1,
-                            value=10
-                        ),
+                        dcc.Slider(id='Years',
+                                   min=1,
+                                   max=20,
+                                   step=1,
+                                   value=10
+                                   ),
                         html.Div(id='slider-output-container'),
                         html.Br(),
                         html.Br(),
@@ -351,11 +329,45 @@ layout= html.Div([ html.Div(
                             value="No",
                             className="three columns",
                         ),
+                    ],
+                    className='six columns',
 
-                        ],
+                ),  html.Div(
+                    [
+                        html.Label('Select an area on the Map:'),
+                        dcc.Graph(id='map-graph',
+                                  animate=False,
+                                  style={'margin-bottom': '0'}),
+                        html.Div(id='area1'),
+                        dcc.Dropdown(
+                            id='cost-rev-selection',
+                            options=[
+                                {"label": "Cost", "value": "Cost"},
+                                {"label": "Revenue", "value": "Revenue"},
+                                {"label": "NPV", "value": "NPV"},
+                            ],
+                            value='Cost',
+                        ),
+                        html.Label('Select an area on the Map (B) for comparison:'),
+                        dcc.Graph(id='cost-rev-graph',
+                                  animate=False,
+                                  style={'margin-bottom': '0'}),
+                        html.Div(id='area2'),
 
-                    className="six columns"
+                    ], className = "six columns"
+
+
                 ),
+
+            ],
+            className='row'
+        ),
+
+        # Map + table + Histogram
+        html.Div(
+            [
+
+                html.Br(),
                 html.H3('Cost-Benefit Analysis'),
                 html.Div([
                     dcc.Graph(
@@ -411,10 +423,31 @@ layout= html.Div([ html.Div(
                             # page_current=0,
                             # page_size=5
                         ),
+                        html.Div(
+                            [
+                        dt.DataTable(
+                            id='selectedpointsDataTable2',
+                            columns=[{"name": i, "id": i, "deletable": False, "selectable": False} for i in
+                                     {'Percentage', 'Type', 'Count'}],
+                            # data=cba.to_dict('records'),
+                            # columns=[{"name": i, "id": i, "deletable": False, "selectable": False} for i in cba.columns
+                            #         ],
+                            editable=False,
+                            filter_action="native",
+                            sort_action="native",
+                            sort_mode="multi",
+                            column_selectable="single",
+                            row_selectable=False,
+                            row_deletable=False,
+                            page_action="native",
+                            # page_current=0,
+                            # page_size=5
+                        )], style={'display': 'none'})
                     ],
                     style=layout_table,
                     className="six columns"
                 ),
+
                 html.Div(
                     [   html.P('Cost-Benefit Input'),
                         dt.DataTable(
@@ -490,13 +523,41 @@ layout = dict(
 def update_output(value):
     return 'You have selected {} years'.format(value)
 
+import plotly.express as px
+
+@app.callback(
+    Output('cost-rev-graph','figure'),
+    [ Input('MapCostRevdata','data'),
+      Input('cost-rev-selection','value'),
+    ])
+def mapcostrevplot(json_data,costorrev):
+
+    px.set_mapbox_access_token(mapbox_access_token)
+
+    dff = pd.read_json(json_data, orient='records')
+    if len(dff)==0:
+        return  {'data': []}
+
+    mmd=map_data.merge(dff, how='left', left_on=['Type', 'Percentage'], right_on=['Area','Percentage'])
+
+    mmdg=mmd.groupby(['X','Y']).sum().reset_index()
+
+    fig = px.scatter_mapbox(mmdg, lat="Y", lon="X", color=costorrev, opacity= 0.7,
+                            color_continuous_scale=px.colors.sequential.Peach if costorrev=='Cost' else px.colors.sequential.Greens if costorrev=='Revenue' else px.colors.sequential.Blues, zoom=12)
+
+    return fig
+
+
 # Options => Map layer
 @app.callback(
     Output('map-graph', 'figure'),
     [Input('Layer', 'value'),
      Input('Country', 'value'),
-     Input('Percentage','value')])
+     Input('Percentage','value'),
+     #Input('MapCostRevdata','data'),
+     ])
 def map_selection(layer,country,per):
+
     aux = map_data[map_data['Type']==layer]
     aux=aux[aux['Country']==country]
     aux = aux[aux['Percentage'].isin(per)]
@@ -505,6 +566,58 @@ def map_selection(layer,country,per):
  #       return gen_map(aux)
     return gen_map(aux)
 
+
+@app.callback(Output('area1', 'children'),
+              [Input('map-graph', 'selectedData')
+               ])
+def selectData(selectData):
+    coor = []
+    if selectData == None:
+        return ''
+
+    for i in range(len(selectData['points'])):
+        coor.append([selectData['points'][i]['lon'], selectData['points'][i]['lat']])
+    obja = {'type': 'Polygon', 'coordinates': [coor]}
+    x = ar.area(obja)
+    return 'Selected area:'+ f"{int(x):,d}"+' m²'
+
+@app.callback(Output('area2', 'children'),
+              [Input('cost-rev-graph', 'selectedData')
+               ])
+def selectData(selectData):
+    coor = []
+    if selectData == None:
+        return ''
+
+    for i in range(len(selectData['points'])):
+        coor.append([selectData['points'][i]['lon'], selectData['points'][i]['lat']])
+    obja = {'type': 'Polygon', 'coordinates': [coor]}
+    x = ar.area(obja)
+    return 'Selected area:'+f"{int(x):,d}"+' m²'
+
+
+# Map selection of area => Intermediate field for aggregate types and percentages
+@app.callback(Output('intermediate-value2','children'),
+    [Input('cost-rev-graph','selectedData')
+    ])
+def selectData(selectData):
+        filtList = []
+        coor=[]
+        if selectData==None:
+            return ''.format(filtList)
+        else :
+          #  selmapdata = map_data[map_data["Id"].isin(selectData['points']['text'])]
+            for i in range(len(selectData['points'])):
+                filtList.append(selectData['points'][i]['pointIndex'])
+                coor.append([selectData['points'][i]['lon'],selectData['points'][i]['lat']])
+            obja={'type':'Polygon','coordinates':[coor]}
+
+            x= ar.area(obja)
+            print(x)
+            selmapdata = map_data[map_data["Id"].isin(filtList)].groupby(['Percentage','Type']).size().reset_index()
+            selmapdata.columns = ['Percentage' , 'Type'  ,'Count']
+            return selmapdata.to_json(date_format='iso', orient='records')
+           # str('Selecting points produces a nested dictionary: {}'.format(filtList))
 
 # Map selection of area => Intermediate field for aggregate types and percentages
 @app.callback(Output('intermediate-value','children'),
@@ -536,6 +649,16 @@ def update_table(jsonified_cleaned_data):
     return rows
 
 
+#Intermediate field for aggregate types and percentages => Table
+@app.callback(
+    Output('selectedpointsDataTable2', 'data'),
+    [Input('intermediate-value2', 'children')])
+def update_table(jsonified_cleaned_data):
+    rows=[]
+    if not jsonified_cleaned_data is None and len(jsonified_cleaned_data)>0:
+        dff= pd.read_json(jsonified_cleaned_data, orient='records')
+        rows = dff.to_dict('records')
+    return rows
 
 def create_time_series(dff, axis_type, title):
     return {
@@ -576,7 +699,7 @@ def update_figure(cbdata, areasdata, years, costrevcategory, interest, inflation
 
     c = produce_aggregate_area(cbdata, areasdata, years, 'Cost', costrevcategory, interest, inflation,
                                projects, country)
-    print(c)
+
     c['Area']=c['Area'] + ' '+ c['Percentage']
     c = c.groupby(['Area']).sum().reset_index()
 
@@ -669,6 +792,7 @@ def update_figure(cbdata,areasdata,years, costrevcategory, interest,inflation,pr
     Output('bar-graph', 'figure'),
     [Input('datatable', 'data'),
      Input('selectedpointsDataTable','data'),
+     Input('selectedpointsDataTable2','data'),
      Input('Years','value'),
      Input('Type','value'),
      Input('Category','value'),
@@ -679,11 +803,16 @@ def update_figure(cbdata,areasdata,years, costrevcategory, interest,inflation,pr
      Input('CBcharttype','value'),
      Input('Cumulative','value')
     ])
-def update_figure(cbdata,areasdata,years,costorrev, costrevcategory, interest,inflation,projects,country,charttype,cumulative ):
-    if len(cbdata)==0 or areasdata==None or len(areasdata)==0:
+def update_figure(cbdata,areasdata,areasdata2,years,costorrev, costrevcategory, interest,inflation,projects,country,charttype,cumulative ):
+    if  len(cbdata)==0 or areasdata == None or len(areasdata)==0:
         return dash.no_update
 
     index, cost, revenue, npv = produce_aggregate(cbdata, areasdata,years,costorrev, costrevcategory, interest,inflation,projects,country,cumulative)
+    index2, cost2, revenue2, npv2=index, cost, revenue, npv
+
+    if len(areasdata2)>0:
+        index2, cost2, revenue2, npv2 = produce_aggregate(cbdata, areasdata2, years, costorrev, costrevcategory, interest,
+                                                      inflation, projects, country, cumulative)
     fig = go.Figure()
     if(charttype=='Line'):
         fig.add_trace(go.Scatter(
@@ -705,6 +834,14 @@ def update_figure(cbdata,areasdata,years,costorrev, costrevcategory, interest,in
             x=index,
             y=npv,
             line=dict(shape="spline", smoothing=0.1, color="#3385ff")))
+
+        if len(areasdata2) > 0:
+            fig.add_trace(go.Scatter(
+                mode="lines",
+                name="NPV-2",
+                x=index2,
+                y=npv2,
+                line=dict(shape="spline", smoothing=0.1, color="#ff00ff")))
 
         fig.update_layout(
             title='Cost & Revenues',
@@ -736,12 +873,32 @@ def update_figure(cbdata,areasdata,years,costorrev, costrevcategory, interest,in
             x=index,
             y=revenue,
         ))
+
         fig.add_trace(go.Scatter(
             mode="lines",
             name="NPV",
             x=index,
             y=npv,
             line=dict(shape="spline", smoothing=0.1, color="#3385ff")))
+        if len(areasdata2) > 0:
+            fig.add_trace(go.Scatter(
+                mode="lines",
+                name="NPV B",
+                x=index2,
+                y=npv2,
+                line=dict(shape="spline", smoothing=0.1, color="#ff00ff",dash = 'dash')))
+            fig.add_trace(go.Scatter(
+                mode="lines",
+                name="Cost B",
+                x=index2,
+                y=cost2,
+                line=dict(shape="spline", smoothing=0, color="#ff6666",dash = 'dash')))
+            fig.add_trace(go.Scatter(
+                mode="lines",
+                name="Revenue B",
+                x=index2,
+                y=revenue2,
+                line=dict(shape="spline", smoothing=0, color="#006600",dash = 'dash')))
 
         fig.update_layout(barmode='relative', title='Cost & Revenues', showlegend=True,)
 
@@ -907,6 +1064,70 @@ def produce_aggregate_area(cbdata, areas, years,costorrev,costrevcategory, inter
         i=i+1
     return CostRevArea
 
+
+@app.callback(
+    Output('MapCostRevdata', 'data'),
+    [Input('datatable', 'data'),
+      Input('Years', 'value'),
+      Input('Type', 'value'),
+      Input('Category', 'value'),
+      Input('Inflation', 'value'),
+      Input('Interest', 'value'),
+      Input('Project', 'value'),
+      Input('Country', 'value'),
+      Input('Layer', 'value'),
+    ])
+def map_selection(cbdata, years, Type, costrevcategory, interest, inflation,
+                                              projects, country,layer):
+
+    areacost= calcAreaCost(cbdata, years, Type, costrevcategory, interest, inflation,
+                                              projects, country)
+
+    return areacost.to_json(date_format='iso', orient='records')
+
+def calcAreaCost(cbdata, years, costorrev, costrevcategory, interest, inflation, projects, country):
+    index = list(range(1, years + 1))
+    cost = []
+    revenue = []
+    category = []
+
+    r = 1 + (interest - inflation) / 100
+    cra = pd.DataFrame(columns=['Area', 'Percentage', 'Cost', 'Revenue','NPV'])
+
+
+    for cb in cbdata:
+        sumcost = 0
+        sumrev = 0
+        for year in index:
+            if cb['Project'] in projects:
+                if cb['Category'] in costrevcategory:
+                    if cb['Type'] == 'Cost' and cb['Type'] in costorrev:
+                            sumcost += cb['Y' + str(year)]
+                    elif cb["Type"] == 'Revenue' and cb['Type'] in costorrev:
+                            sumrev += cb['Y' + str(year)]
+        if sumcost > 0 or sumrev > 0:
+            cra = cra.append({'Area': cb['Area'], 'Percentage': cb['AreaType'], 'Cost': sumcost, 'Revenue': sumrev, 'NPV':sumcost-sumrev}, ignore_index=True)
+
+
+    cra  = cra.groupby(['Area','Percentage']).sum().reset_index()
+
+
+    for index, row in cra.iterrows():
+        row['Cost'] += cra[(cra['Area'] == '') & (cra['Percentage'] == 'all')]['Cost'].sum()
+        row['Cost'] += cra[(cra['Area'] == row['Area']) & (cra['Percentage'] == 'all')]['Cost'].sum()
+        row['Cost'] += cra[(cra['Area'] == row['Area']) & (cra['Percentage'] == row['Percentage'])]['Cost'].sum()
+        row['Revenue'] += cra[(cra['Area'] == '') & (cra['Percentage'] == 'all')]['Revenue'].sum()
+        row['Revenue'] += cra[(cra['Area'] == row['Area']) & (cra['Percentage'] == 'all')]['Revenue'].sum()
+        row['Revenue'] += cra[(cra['Area'] == row['Area']) & (cra['Percentage'] == row['Percentage'])]['Revenue'].sum()
+        cra.loc[index, 'Cost']=row['Cost']
+        cra.loc[index, 'Revenue'] = row['Revenue']
+
+    if len(cra)>0 :
+        cra.drop(cra.loc[cra['Area'] == ''].index, inplace=True)
+        cra.drop(cra.loc[cra['Percentage'] == ''].index, inplace=True)
+        cra.drop(cra.loc[cra['Percentage'] == 'all'].index, inplace=True)
+
+    return cra
 
 if __name__ == '__main__':
     app.run_server(debug=False)
