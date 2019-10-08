@@ -471,8 +471,6 @@ layout= html.Div([ html.Div(
                     className="twelve columns"
                 ),
 
-
-
                 Footer(app)
 
             ], className="row"
@@ -546,6 +544,7 @@ def mapcostrevplot(json_data,costorrev):
                             color_continuous_scale=px.colors.sequential.Peach if costorrev=='Cost' else px.colors.sequential.Greens if costorrev=='Revenue' else px.colors.sequential.Blues, zoom=12)
 
     return fig
+
 
 
 # Options => Map layer
@@ -842,6 +841,18 @@ def update_figure(cbdata,areasdata,areasdata2,years,costorrev, costrevcategory, 
                 x=index2,
                 y=npv2,
                 line=dict(shape="spline", smoothing=0.1, color="#ff00ff")))
+            fig.add_trace(go.Scatter(
+                mode="lines",
+                name="Cost B",
+                x=index2,
+                y=cost2,
+                line=dict(shape="spline", smoothing=0, color="#ff6666", dash='dash')))
+            fig.add_trace(go.Scatter(
+                mode="lines",
+                name="Revenue B",
+                x=index2,
+                y=revenue2,
+                line=dict(shape="spline", smoothing=0, color="#006600", dash='dash')))
 
         fig.update_layout(
             title='Cost & Revenues',
