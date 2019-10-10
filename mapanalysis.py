@@ -9,15 +9,17 @@ import plotly.graph_objects as go
 import numpy as np
 import os.path
 import area as ar
+import plotly.express as px
 import copy
 import json
 
-from utils import Header, Footer, make_dash_table, app
+from utils import Header, Footer, make_dash_table, app,STATIC_PATH
 from dash.dependencies import Input, Output, State
 
 # Reads Excel with CB input to a dataframe
 def ReadCBExcel():
-    cb= pd.read_excel('CBASample.xls')
+
+    cb= pd.read_excel(os.path.join(STATIC_PATH,'CBASample.xls'))
     cb = cb.fillna('')
     Iscost=True
     project=''
@@ -477,42 +479,7 @@ layout= html.Div([ html.Div(
         )
     ], className='ten columns offset-by-one'))
 ])
-'''
-layout = dict(
-            bargap=0.05,
-            bargroupgap=0,
-            barmode='group',
-            showlegend=False,
-            dragmode="select",
-            xaxis=dict(
-                showgrid=False,
-                nticks=50,
-                fixedrange=False
-            ),
-            yaxis=dict(
-                showticklabels=True,
-                showgrid=False,
-                fixedrange=False,
-                rangemode='nonnegative',
-                zeroline=False        )
-        )
 
-layout = dict(
-    autosize=True,
-    automargin=True,
-    margin=dict(l=30, r=30, b=20, t=40),
-    hovermode="closest",
-    plot_bgcolor="#F9F9F9",
-    paper_bgcolor="#F9F9F9",
-    legend=dict(font=dict(size=10), orientation="h"),
-    title="",
-    mapbox=dict(
-        accesstoken=mapbox_access_token,
-        style="light",
-        center=dict(lon=-78.05, lat=42.54),
-        zoom=7,
-    ),
-)'''
 
 # Slider => show selected value
 @app.callback(
@@ -521,7 +488,7 @@ layout = dict(
 def update_output(value):
     return 'You have selected {} years'.format(value)
 
-import plotly.express as px
+
 
 @app.callback(
     Output('cost-rev-graph','figure'),
@@ -659,27 +626,6 @@ def update_table(jsonified_cleaned_data):
         rows = dff.to_dict('records')
     return rows
 
-def create_time_series(dff, axis_type, title):
-    return {
-        'data': [go.Scatter(
-            x=dff['Year'],
-            y=dff['Value'],
-            mode='lines+markers'
-        )],
-        'layout': {
-            'height': 225,
-            'margin': {'l': 20, 'b': 30, 'r': 10, 't': 10},
-            'annotations': [{
-                'x': 0, 'y': 0.85, 'xanchor': 'left', 'yanchor': 'bottom',
-                'xref': 'paper', 'yref': 'paper', 'showarrow': False,
-                'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
-                'text': title
-            }],
-            'yaxis': {'type': 'linear' if axis_type == 'Linear' else 'log'},
-            'xaxis': {'showgrid': False}
-        }
-    }
-
 
 @app.callback(
     Output('costperareatypepie', 'figure'),
@@ -733,9 +679,7 @@ def update_figure(cbdata,areasdata,years, costrevcategory, interest,inflation,pr
     fig.update_layout(title='Cost per Area', showlegend=True)
     return fig
 
-
-#costperaretypeapie
-
+# cost Pie chart
 @app.callback(
     Output('costpie', 'figure'),
     [Input('datatable', 'data'),
@@ -759,6 +703,7 @@ def update_figure(cbdata,areasdata,years, costrevcategory, interest,inflation,pr
     fig.update_layout(title='Cost per category', showlegend=True)
     return fig
 
+# Revenue Pie chart
 @app.callback(
     Output('revenuepie', 'figure'),
     [Input('datatable', 'data'),
@@ -785,8 +730,7 @@ def update_figure(cbdata,areasdata,years, costrevcategory, interest,inflation,pr
 
 
 
-
-
+#Main CBA graph
 @app.callback(
     Output('bar-graph', 'figure'),
     [Input('datatable', 'data'),
@@ -971,6 +915,7 @@ def produce_aggregate(cbdata, areas, years, costorrev, costrevcategory, interest
         i=i+1
     return index, cost,revenue, npvs
 
+# calculate cost benefit data per category
 def produce_aggregate_category(cbdata, areas, years,costorrev,costrevcategory, interest, inflation, projects, country):
     index = list(range(1,years+1))
     cost=[]
@@ -1022,8 +967,7 @@ def produce_aggregate_category(cbdata, areas, years,costorrev,costrevcategory, i
         i=i+1
     return category, cost,revenue
 
-
-
+# calculate cost benefit per area
 def produce_aggregate_area(cbdata, areas, years,costorrev,costrevcategory, interest, inflation, projects, country):
     index = list(range(1,years+1))
     cost=[]
@@ -1075,7 +1019,7 @@ def produce_aggregate_area(cbdata, areas, years,costorrev,costrevcategory, inter
         i=i+1
     return CostRevArea
 
-
+#Draws 2nd map (cost-revenue)
 @app.callback(
     Output('MapCostRevdata', 'data'),
     [Input('datatable', 'data'),
@@ -1096,6 +1040,8 @@ def map_selection(cbdata, years, Type, costrevcategory, interest, inflation,
 
     return areacost.to_json(date_format='iso', orient='records')
 
+
+#Calculates total cost-benefit per area point
 def calcAreaCost(cbdata, years, costorrev, costrevcategory, interest, inflation, projects, country):
     index = list(range(1, years + 1))
     cost = []
@@ -1140,5 +1086,5 @@ def calcAreaCost(cbdata, years, costorrev, costrevcategory, interest, inflation,
 
     return cra
 
-if __name__ == '__main__':
-    app.run_server(debug=False)
+#if __name__ == '__main__':
+#    app.run_server(debug=False)

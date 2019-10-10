@@ -9,14 +9,11 @@ from utils import Header, make_dash_table,readWorldDataUrl, app
 
 dfx=None
 dfy=None
-#df = pd.read_csv(
-    #'https://gist.githubusercontent.com/chriddyp/'
-    #'cb5392c35661370d95f300086accea51/raw/'
-    #'8e0768211f6b747c0db42a9ce9a0937dafcbd8b2/'
- #   'indicators.csv')
+
 
 Indicators = pd.read_csv("WorldDataBankIndicators.csv",';').to_dict(orient='records')
 
+# Color per country
 scl={}
 scl['Greece']='#0000ff'
 scl['Albania']='#ff0000'
@@ -52,6 +49,7 @@ layout= html.Div([
                 ),
 
                 html.Div([
+                html.Button('Refresh Data', id='Refresh'),
                 html.Label('1st series'),
                 dcc.Dropdown(
                     id='xaxis-column',
@@ -113,9 +111,24 @@ layout= html.Div([
     ], className='ten columns offset-by-one')
 ])
 
+@app.callback(
+    dash.dependencies.Output('xaxis-column', 'options'),
+    [dash.dependencies.Input('Refresh', 'n_clicks')])
+def update_output(n_clicks):
+    Indicators = pd.read_csv("WorldDataBankIndicators.csv", ';').to_dict(orient='records')
+    options = [{'label': i['Name'], 'value': i['DataURL']} for i in Indicators]
+    return options
+
+@app.callback(
+    dash.dependencies.Output('yaxis-column', 'options'),
+    [dash.dependencies.Input('Refresh', 'n_clicks')])
+def update_output(n_clicks):
+    Indicators = pd.read_csv("WorldDataBankIndicators.csv", ';').to_dict(orient='records')
+    options = [{'label': i['Name'], 'value': i['DataURL']} for i in Indicators]
+    return options
 
 
-
+#Correlation diagram plot
 @app.callback(
     dash.dependencies.Output('crossfilter-indicator-scatter', 'figure'),
     [dash.dependencies.Input('xaxis-column', 'value'),
@@ -170,6 +183,7 @@ def update_graph(xaxis_column_name, yaxis_column_name,
     )
 }
 
+#Time series plot
 def create_time_series(dff, axis_type, title):
     return {
         'data': [go.Scatter(
@@ -191,6 +205,7 @@ def create_time_series(dff, axis_type, title):
         }
     }
 
+#1st graph plot
 @app.callback(
     dash.dependencies.Output('x-time-series', 'figure'),
     [dash.dependencies.Input('crossfilter-indicator-scatter', 'hoverData'),
@@ -210,6 +225,7 @@ def update_y_timeseries(hoverData, xaxis_column_name, axis_type):
     title = '<b>{}</b><br>{}'.format(country_name,   name)
     return create_time_series(dfx, axis_type, title)
 
+#2nd graph plot
 @app.callback(
     dash.dependencies.Output('y-time-series', 'figure'),
     [dash.dependencies.Input('crossfilter-indicator-scatter', 'hoverData'),
@@ -229,5 +245,5 @@ def update_x_timeseries(hoverData, yaxis_column_name, axis_type):
     return create_time_series(dfy, axis_type, title)
 
 
-if __name__ == '__main__':
-    app.run_server(debug=True)
+#if __name__ == '__main__':
+#    app.run_server(debug=True)
